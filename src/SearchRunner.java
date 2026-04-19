@@ -35,6 +35,12 @@ public class SearchRunner {
             case "AStar":
                 outcome = runAStarSearch(request, verbose);
                 break;
+            case "Dijkstra":
+                outcome = runDijkstraSearch(request, verbose);
+                break;
+            case "BellmanFord":
+                outcome = runBellmanFordSearch(request, verbose);
+                break;
             default:
                 throw new IllegalArgumentException("Unsupported search type '" + request.getSearchType() + "'.");
         }
@@ -65,6 +71,10 @@ public class SearchRunner {
                 return "Greedy Best-First Search";
             case "AStar":
                 return "A* Search";
+            case "Dijkstra":
+                return "Dijkstra's Algorithm";
+            case "BellmanFord":
+                return "Bellman-Ford Algorithm";
             default:
                 return searchType;
         }
@@ -290,6 +300,166 @@ public class SearchRunner {
             if (verbose) {
                 printTrace(iterations, currentNode, frontier.size(), exploredAirports.size());
             }
+        }
+
+        return SearchOutcome.failure(exploredAirports, nodesCreated, iterations);
+    }
+
+    private SearchOutcome runDijkstraSearch(SearchRequest request, boolean verbose) {
+        Map<Integer, Double> distances = new HashMap<>();
+        PriorityQueue<AirportSearchNode> frontier = new PriorityQueue<>(
+                Comparator.comparingDouble(AirportSearchNode::getCostSoFar)
+                        .thenComparing(node -> node.getAirport().getDisplayName())
+        );
+        Set<Integer> exploredAirportIds = new HashSet<>();
+        ArrayList<Airport> exploredAirports = new ArrayList<>();
+
+        AirportSearchNode root = AirportSearchNode.root(request.getSourceAirport(), 0.0);
+        frontier.add(root);
+        distances.put(root.getAirport().getId(), 0.0);
+
+        int nodesCreated = 1;
+        int iterations = 0;
+
+        while (!frontier.isEmpty()) {
+            iterations++;
+            AirportSearchNode currentNode = frontier.poll();
+
+            if (exploredAirportIds.contains(currentNode.getAirport().getId())) {
+                continue;
+            }
+
+            Double currentDistance = distances.get(currentNode.getAirport().getId());
+            if (currentDistance != null && currentNode.getCostSoFar() > currentDistance + 0.0001) {
+                continue;
+            }
+
+            exploredAirportIds.add(currentNode.getAirport().getId());
+            exploredAirports.add(currentNode.getAirport());
+
+            if (currentNode.getAirport().getId() == request.getDestinationAirport().getId()) {
+                if (verbose) {
+                    printTrace(iterations, currentNode, frontier.size(), exploredAirports.size());
+                }
+                return SearchOutcome.success(currentNode, exploredAirports, nodesCreated, iterations);
+            }
+
+            for (FlightConnection connection: graph.getOutgoingConnections(currentNode.getAirport())) {
+                Airport nextAirport = connection.getDestinationAirport();
+                if (exploredAirportIds.contains(nextAirport.getId())) {
+                    continue;
+                }
+
+                double newDistance = currentNode.getCostSoFar() + connection.getDistanceKm();
+                Double knownDistance = distances.getOrDefault(nextAirport.getId(), Double.POSITIVE_INFINITY);
+                if (newDistance + 0.0001 >= knownDistance) {
+                    continue;
+                }
+
+                distances.put(nextAirport.getId(), newDistance);
+                AirportSearchNode childNode = currentNode.createChild(connection, newDistance);
+                frontier.add(childNode);
+                nodesCreated++;
+            }
+
+            if (verbose) {
+                printTrace(iterations, currentNode, frontier.size(), exploredAirports.size());
+            }
+        }
+
+        return SearchOutcome.failure(exploredAirports, nodesCreated, iterations);
+    }
+
+    private SearchOutcome runBellmanFordSearch(SearchRequest request, boolean verbose) {
+        Map<Integer, Double> distances = new HashMap<>();
+        Map<Integer, AirportSearchNode> previousNodes = new HashMap<>();
+        Set<Integer> exploredAirportIds = new HashSet<>();
+        ArrayList<Airport> exploredAirports = new ArrayList<>();
+
+        for (Airport airport : graph.getAirports()) {
+            distances.put(airport.getId(), Double.POSITIVE_INFINITY);
+        }
+        distances.put(request.getSourceAirport().getId(), 0.0);
+        previousNodes.put(request.getSourceAirport().getId(), null);
+
+        int graphSize = graph.getAirports().size();
+        int iterations = 0;
+        int nodesCreated = 1;
+
+        for (int i = 0; i < graphSize - 1; i++) {
+            boolean updated = false;
+            for (Airport airport : graph.getAirports()) {
+                if (!exploredAirportIds.contains(airport.getId()) && distances.get(airport.getId()) != Double.POSITIVE_INFINITY) {
+                    for (FlightConnection connection : graph.getOutgoingConnections(airport)) {
+                        Airport nextAirport = connection.getDestinationAirport();
+                        double newDistance = distances.get(airport.getId()) + connection.getDistanceKm();
+
+                        if (newDistance < distances.get(nextAirport.getId())) {
+                            distances.put(nextAirport.getId(), newDistance);
+                            AirportSearchNode childNode = new AirportSearchNode(
+                                    nextAirport,
+                                    previousNodes.get(airport.getId()),
+                                    connection,
+                                    newDistance,
+                                    newDistance
+                            );
+                            previousNodes.put(nextAirport.getId(), childNode);
+                            nodesCreated++;
+                            updated = true;
+                            iterations++;
+                        }
+                    }
+                }
+            }
+            if (!updated) break;
+        }
+
+        Double destinationDistance = distances.get(request.getDestinationAirport().getId());
+        if (destinationDistance != Double.POSITIVE_INFINITY) {
+            AirportSearchNode goalNode = previousNodes.get(request.getDestinationAirport().getId());
+            ArrayList<Airport> pathAirports = new ArrayList<>();
+            ArrayList<FlightConnection> pathConnections = new ArrayList<>();
+            double totalDistance = 0.0;
+
+            AirportSearchNode current = goalNode;
+            while (current != null) {
+                pathAirports.add(0, current.getAirport());
+                if (current.getIncomingConnection() != null) {
+                    pathConnections.add(0, current.getIncomingConnection());
+                    totalDistance += current.getIncomingConnection().getDistanceKm();
+                }
+                if (current.getParent() != null) {
+                    current = new AirportSearchNode(
+                            current.getParent().getAirport(),
+                            current.getParent().getParent(),
+                            current.getParent().getIncomingConnection(),
+                            current.getParent().getCostSoFar(),
+                            0
+                    );
+                } else {
+                    current = null;
+                }
+            }
+            pathAirports.add(0, request.getSourceAirport());
+
+            for (Integer airportId : exploredAirportIds) {
+                for (Airport airport : graph.getAirports()) {
+                    if (airport.getId() == airportId) {
+                        exploredAirports.add(airport);
+                        break;
+                    }
+                }
+            }
+
+            return new SearchOutcome(
+                    pathAirports,
+                    pathConnections,
+                    exploredAirports,
+                    totalDistance,
+                    nodesCreated,
+                    exploredAirportIds.size(),
+                    iterations
+            );
         }
 
         return SearchOutcome.failure(exploredAirports, nodesCreated, iterations);

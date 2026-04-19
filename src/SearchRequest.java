@@ -1,6 +1,6 @@
 public class SearchRequest {
 
-    private static final String[] SUPPORTED_ALGORITHMS = {"BFS", "DFS", "BestF", "AStar"};
+    private static final String[] SUPPORTED_ALGORITHMS = {"BFS", "DFS", "BestF", "AStar", "Dijkstra", "BellmanFord"};
 
     private final String searchType;
     private final Airport sourceAirport;

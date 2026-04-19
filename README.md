@@ -1,6 +1,6 @@
-# Flight Route Planner
+# Flight Route Planner  @lokesh209601
 
-A Java flight-route planner that loads real airport and route data from `airports.dat.txt` and `routes.dat.txt`, then runs `BFS`, `DFS`, `BestF`, and `AStar` on the resulting flight graph.
+git remote add origin https://github.com/lokesh209601/AI_FlightRoutePlanner.git
 
 ## What It Does
 
@@ -8,8 +8,8 @@ A Java flight-route planner that loads real airport and route data from `airport
 - Loads route data from `routes.dat.txt`
 - Builds a directed graph of direct flight connections
 - Lets you choose source and destination airports in a Swing UI
-- Runs `BFS`, `DFS`, `BestF`, or `AStar` to find a route
-- Shows the airport path, leg-by-leg itinerary, total distance, runtime, and search stats
+- Runs `BFS`, `DFS`, `BestF`, `AStar`, `Dijkstra`, or `BellmanFord` to find a route
+- Shows the airport path, leg-by-leg itinerary, total distance, fuel consumption (in KL), fuel cost (in lakhs), runtime, and search stats
 
 ## Run The UI
 
@@ -41,14 +41,31 @@ run-ui.bat
 Use airport codes from the dataset, such as IATA or ICAO codes:
 
 ```powershell
-java -cp src A1Main <DFS|BFS|BestF|AStar> <source airport code> <destination airport code>
+java -cp src A1Main <DFS|BFS|BestF|AStar|Dijkstra|BellmanFord> <source airport code> <destination airport code>
 ```
 
 Example:
 
 ```powershell
-java -cp src A1Main AStar DEL LHR
+java -cp src A1Main Dijkstra DEL LHR
 ```
+
+## Search Algorithms
+
+The app supports six search algorithms for finding flight routes:
+
+- **DFS** (Depth-First Search): Explores paths deeply before backtracking; explores all airports
+- **BFS** (Breadth-First Search): Explores airports level-by-level; explores all airports  
+- **BestF** (Greedy Best-First Search): Uses straight-line distance heuristic to prioritize promising paths; may not find shortest path
+- **AStar** (A* Search): Combines actual distance with heuristic estimates for optimal pathfinding
+- **Dijkstra** (Dijkstra's Algorithm): Guarantees shortest path by relaxing all edges; uses priority queue ordering by cumulative distance
+- **BellmanFord** (Bellman-Ford Algorithm): Finds shortest paths using edge relaxation; handles negative weights (if any)
+
+## Fuel Metrics
+
+Route results now display:
+- **Fuel Consumption**: Calculated in kiloliters (KL) based on distance and aircraft efficiency (3.5 L/km at 700 km/h cruise speed)
+- **Fuel Cost**: Estimated cost in lakhs (1 lakh = 100,000 INR) at ₹150,000 per kiloliter
 
 ## Notes
 
